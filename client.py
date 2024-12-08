@@ -3,6 +3,7 @@ import asyncio
 from message import WeechatMessage
 import notify2
 import argparse
+import subprocess
 
 
 class WeechatRelayListener(asyncio.Protocol):
@@ -55,10 +56,19 @@ class WeechatRelayListener(asyncio.Protocol):
 if __name__ == '__main__':
     parser = argparse.ArgumentParser(description='Start the weechat relay listener.')
     parser.add_argument('host', help='Relay host')
-    parser.add_argument('password', help='Relay password')
+    parser.add_argument('--password', help='Relay password')
+    parser.add_argument('--password-cmd', help='Command to get relay password')
     parser.add_argument('-p', '--port', help='Relay port (9001)', type=int, default=9001)
     parser.add_argument('-s', '--ssl', help='Use ssl (true)', action='store_false', default=True)
     args = parser.parse_args()
+
+    if args.password_cmd:
+        password = subprocess.check_output(args.password_cmd, shell=True).decode('utf-8')
+    elif args.password:
+        password = args.password
+    else:
+        print('missing either --password or --password-cmd')
+        exit(-1)
 
     loop = asyncio.get_event_loop()
     coro = loop.create_connection(lambda: WeechatRelayListener(args.password, loop),
