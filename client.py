@@ -1,8 +1,10 @@
 #!/bin/env python
 import asyncio
 from message import WeechatMessage
-import notify2
 import argparse
+import notify2
+from os import path
+import ssl
 import subprocess
 
 
@@ -53,6 +55,13 @@ class WeechatRelayListener(asyncio.Protocol):
         self.loop.stop()
 
 
+def create_ssl_context(cert_path):
+    ctx = ssl.create_default_context()
+    ctx.verify_mode = ssl.CERT_OPTIONAL
+    ctx.load_verify_locations(cafile=cert_path)
+    return ctx
+
+
 if __name__ == '__main__':
     parser = argparse.ArgumentParser(description='Start the weechat relay listener.')
     parser.add_argument('host', help='Relay host')
@@ -60,7 +69,10 @@ if __name__ == '__main__':
     parser.add_argument('--password-cmd', help='Command to get relay password')
     parser.add_argument('-p', '--port', help='Relay port (9001)', type=int, default=9001)
     parser.add_argument('-s', '--ssl', help='Use ssl (true)', action='store_false', default=True)
+    parser.add_argument('-c', '--ca-file', help="Path to the CA file to verify certificates")
     args = parser.parse_args()
+
+    ssl_ctx = create_ssl_context(path.abspath(path.expanduser(args.ca_file))) if args.ssl else False
 
     if args.password_cmd:
         password = subprocess.check_output(args.password_cmd, shell=True).decode('utf-8')
@@ -71,8 +83,8 @@ if __name__ == '__main__':
         exit(-1)
 
     loop = asyncio.get_event_loop()
-    coro = loop.create_connection(lambda: WeechatRelayListener(args.password, loop),
-                                  args.host, args.port, ssl=args.ssl)
+    coro = loop.create_connection(lambda: WeechatRelayListener(password, loop),
+                                  args.host, args.port, ssl=ssl_ctx)
     loop.run_until_complete(coro)
     loop.run_forever()
     loop.close()
